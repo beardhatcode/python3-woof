@@ -267,11 +267,11 @@ class FileServHTTPRequestHandler (http.server.BaseHTTPRequestHandler):
                 location += ".tar"
 
         if self.path != location:
-            txt = """\
+            txt = f"""\
                 <html>
                    <head><title>302 Found</title></head>
-                   <body>302 Found <a href="%s">here</a>.</body>
-                </html>\n""" % location
+                   <body>302 Found <a href="{location}">here</a>.</body>
+                </html>\n"""
             self.send_response(302)
             self.send_header("Location", location)
             self.send_header("Content-Type", "text/html")
@@ -304,8 +304,9 @@ class FileServHTTPRequestHandler (http.server.BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Disposition", "attachment;filename=%s" %
-                             urllib.parse.quote(os.path.basename(self.filename)))
+            safe_filename = urllib.parse.quote(os.path.basename(self.filename))
+            self.send_header("Content-Disposition",
+                             f"attachment;filename={safe_filename}")
             if os.path.isfile(self.filename):
                 self.send_header("Content-Length",
                                  os.path.getsize(self.filename))
@@ -355,16 +356,15 @@ def serve_files(filename, maxdown=1, ip_addr='', port=8080):
     try:
         httpd = ForkingHTTPServer((ip_addr, port), FileServHTTPRequestHandler)
     except socket.error:
-        print >>sys.stderr, "cannot bind to IP address '%s' port %d" % (
-            ip_addr, port)
+        print(f"cannot bind to IP address '{ip_addr}' port {port}",
+              file=sys.stderr)
         sys.exit(1)
 
     if not ip_addr:
         ip_addr = find_ip()
     if ip_addr:
         if filename:
-            location = "http://%s:%s/%s" % (ip_addr, httpd.server_port,
-                                            urllib.parse.quote(os.path.basename(filename)))
+            location = f"http://{ip_addr}:{httpd.server_port}/{urllib.parse.quote(os.path.basename(filename))}"
             if os.path.isdir(filename):
                 if compressed == 'gz':
                     location += ".tar.gz"
@@ -375,7 +375,7 @@ def serve_files(filename, maxdown=1, ip_addr='', port=8080):
                 else:
                     location += ".tar"
         else:
-            location = "http://%s:%s/" % (ip_addr, httpd.server_port)
+            location = f"http://{ip_addr}:{httpd.server_port}"
 
         print(f"Now serving on {location}")
 
@@ -385,13 +385,13 @@ def serve_files(filename, maxdown=1, ip_addr='', port=8080):
 
 def usage(defport, defmaxdown, errmsg=None):
     name = os.path.basename(sys.argv[0])
-    print("""
-    Usage: %s [-i <ip_addr>] [-p <port>] [-c <count>] <file>
-           %s [-i <ip_addr>] [-p <port>] [-c <count>] [-z|-j|-Z|-u] <dir>
-           %s [-i <ip_addr>] [-p <port>] [-c <count>] -s
-           %s [-i <ip_addr>] [-p <port>] [-c <count>] -U
+    print(f"""
+    Usage: {name} [-i <ip_addr>] [-p <port>] [-c <count>] <file>
+           {name} [-i <ip_addr>] [-p <port>] [-c <count>] [-z|-j|-Z|-u] <dir>
+           {name} [-i <ip_addr>] [-p <port>] [-c <count>] -s
+           {name} [-i <ip_addr>] [-p <port>] [-c <count>] -U
 
-           %s <url>
+           {name} <url>
 
     Serves a single file <count> times via http on port <port> on IP
     address <ip_addr>.
@@ -401,11 +401,11 @@ def usage(defport, defmaxdown, errmsg=None):
     You can configure your default compression method in the configuration
     file described below.
 
-    When -s is specified instead of a filename, %s distributes itself.
+    When -s is specified instead of a filename, {name} distributes itself.
 
     When -U is specified, woof provides an upload form, allowing file uploads.
 
-    defaults: count = %d, port = %d
+    defaults: count = {defmaxdown}, port = {defport}
 
     If started with an url as an argument, woof acts as a client,
     downloading the file and saving it in the current directory.
@@ -422,8 +422,7 @@ def usage(defport, defmaxdown, errmsg=None):
         count = 2
         ip = 127.0.0.1
         compressed = gz
-   """.format(name, name, name, name, name, name, defmaxdown,
-              defport), file=sys.stderr)
+   """, file=sys.stderr)
 
     if errmsg:
         print(errmsg, file=sys.stderr)
@@ -556,8 +555,8 @@ def main():
                     raise ValueError
             except ValueError:
                 usage(defaultport, defaultmaxdown,
-                      "invalid download count: %r. "
-                      "Please specify an integer >= 0." % val)
+                      f"invalid download count: {val}. "
+                      "Please specify an integer >= 0.")
 
         elif option == '-i':
             ip_addr = val
@@ -567,7 +566,7 @@ def main():
                 port = int(val)
             except ValueError:
                 usage(defaultport, defaultmaxdown,
-                      "invalid port number: %r. Please specify an integer" % val)
+                      f"invalid port number: {val}. Please specify an integer")
 
         elif option == '-s':
             filenames.append(__file__)
@@ -588,7 +587,7 @@ def main():
             compressed = ''
 
         else:
-            usage(defaultport, defaultmaxdown, "Unknown option: %r" % option)
+            usage(defaultport, defaultmaxdown, f"Unknown option: {option}")
 
     if upload:
         if len(filenames) > 0:
@@ -608,11 +607,11 @@ def main():
 
         if not os.path.exists(filename):
             usage(defaultport, defaultmaxdown,
-                  "%s: No such file or directory" % filenames[0])
+                  f"{filenames[0]}: No such file or directory")
 
         if not (os.path.isfile(filename) or os.path.isdir(filename)):
             usage(defaultport, defaultmaxdown,
-                  "%s: Neither file nor directory" % filenames[0])
+                  f"{filenames[0]}: Neither file nor directory")
 
     serve_files(filename, maxdown, ip_addr, port)
 
