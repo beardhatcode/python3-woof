@@ -26,10 +26,10 @@
 # tarfile usage suggested by Morgan Lefieux <comete@geekandfree.org>
 # File upload support loosely based on code from Stephen English <steve@secomputing.co.uk>
 
-import sys, os, errno, socket, getopt, commands, tempfile
-import cgi, urllib, urlparse, BaseHTTPServer
+import sys, os, errno, socket, getopt, tempfile
+import cgi, urllib, urllib.parse, http.server
 import readline
-import ConfigParser
+import configparser
 import shutil, tarfile, zipfile
 import struct
 
@@ -118,7 +118,7 @@ def find_ip ():
 # since we do our fork() in the request handler
 # the server must not shutdown() the socket.
 
-class ForkingHTTPServer (BaseHTTPServer.HTTPServer):
+class ForkingHTTPServer (http.server.HTTPServer):
    def process_request(self, request, client_address):
       self.finish_request (request, client_address)
       self.close_request (request)
@@ -130,7 +130,7 @@ class ForkingHTTPServer (BaseHTTPServer.HTTPServer):
 # Currently it is impossible to serve different files with different
 # instances of this class.
 
-class FileServHTTPRequestHandler (BaseHTTPServer.BaseHTTPRequestHandler):
+class FileServHTTPRequestHandler (http.server.BaseHTTPRequestHandler):
    server_version = "Simons FileServer"
    protocol_version = "HTTP/1.0"
 
@@ -138,7 +138,7 @@ class FileServHTTPRequestHandler (BaseHTTPServer.BaseHTTPRequestHandler):
 
    def log_request (self, code='-', size='-'):
       if code == 200:
-         BaseHTTPServer.BaseHTTPRequestHandler.log_request (self, code, size)
+         http.server.BaseHTTPRequestHandler.log_request (self, code, size)
 
 
    def do_POST (self):
@@ -190,7 +190,7 @@ class FileServHTTPRequestHandler (BaseHTTPServer.BaseHTTPRequestHandler):
          upfilename += "."
          destfile, destfilename = tempfile.mkstemp (prefix = upfilename, dir = ".")
 
-      print >>sys.stderr, "accepting uploaded file: %s -> %s" % (upfilename, destfilename)
+      print("accepting uploaded file: {upfilename} -> {destfilename}", file=sys.stderr)
 
       shutil.copyfileobj (upfile.file, os.fdopen (destfile, "w"))
 
@@ -244,8 +244,8 @@ class FileServHTTPRequestHandler (BaseHTTPServer.BaseHTTPRequestHandler):
       # Redirect any request to the filename of the file to serve.
       # This hands over the filename to the client.
 
-      self.path = urllib.quote (urllib.unquote (self.path))
-      location = "/" + urllib.quote (os.path.basename (self.filename))
+      self.path = urllib.parse.quote (urllib.parse.unquote (self.path))
+      location = "/" + urllib.parse.quote (os.path.basename (self.filename))
       if os.path.isdir (self.filename):
          if compressed == 'gz':
             location += ".tar.gz"
@@ -288,12 +288,12 @@ class FileServHTTPRequestHandler (BaseHTTPServer.BaseHTTPRequestHandler):
             type = "dir"
 
          if not type:
-            print >> sys.stderr, "can only serve files or directories. Aborting."
+            print("can only serve files or directories.  Aborting.", file=sys.stderr)
             sys.exit (1)
 
          self.send_response (200)
          self.send_header ("Content-Type", "application/octet-stream")
-         self.send_header ("Content-Disposition", "attachment;filename=%s" % urllib.quote (os.path.basename (self.filename)))
+         self.send_header ("Content-Disposition", "attachment;filename=%s" % urllib.parse.quote (os.path.basename (self.filename)))
          if os.path.isfile (self.filename):
             self.send_header ("Content-Length",
                               os.path.getsize (self.filename))
@@ -349,7 +349,7 @@ def serve_files (filename, maxdown = 1, ip_addr = '', port = 8080):
    if ip_addr:
       if filename:
          location = "http://%s:%s/%s" % (ip_addr, httpd.server_port,
-                                         urllib.quote (os.path.basename (filename)))
+                                         urllib.parse.quote (os.path.basename (filename)))
          if os.path.isdir (filename):
             if compressed == 'gz':
                location += ".tar.gz"
@@ -371,7 +371,7 @@ def serve_files (filename, maxdown = 1, ip_addr = '', port = 8080):
 
 def usage (defport, defmaxdown, errmsg = None):
    name = os.path.basename (sys.argv[0])
-   print >>sys.stderr, """
+   print("""
     Usage: %s [-i <ip_addr>] [-p <port>] [-c <count>] <file>
            %s [-i <ip_addr>] [-p <port>] [-c <count>] [-z|-j|-Z|-u] <dir>
            %s [-i <ip_addr>] [-p <port>] [-c <count>] -s
@@ -408,17 +408,18 @@ def usage (defport, defmaxdown, errmsg = None):
         count = 2
         ip = 127.0.0.1
         compressed = gz
-   """ % (name, name, name, name, name, name, defmaxdown, defport)
+   """.format(name, name, name, name, name, name, defmaxdown,
+       defport),file=sys.stderr)
 
    if errmsg:
-      print >>sys.stderr, errmsg
-      print >>sys.stderr
+      print(errmsg, file=sys.stderr)
+      print("", file=sys.stderr)
    sys.exit (1)
 
 
 
 def woof_client (url):
-   urlparts = urlparse.urlparse (url, "http")
+   urlparts = urllib.parse.urlparse (url, "http")
    if urlparts[0] not in [ "http", "https" ] or urlparts[1] == '':
       return None
 
@@ -441,14 +442,14 @@ def woof_client (url):
 
    if fname == None:
       url = f.geturl ()
-      urlparts = urlparse.urlparse (url)
+      urlparts = urllib.parse.urlparse (url)
       fname = urlparts[2]
 
    if not fname:
       fname = "woof-out.bin"
 
    if fname:
-      fname = urllib.unquote (fname)
+      fname = urllib.parse.unquote (fname)
       fname = os.path.basename (fname)
 
    readline.set_startup_hook (lambda: readline.insert_text (fname))
@@ -504,7 +505,7 @@ def main ():
    port = 8080
    ip_addr = ''
 
-   config = ConfigParser.ConfigParser ()
+   config = configparser.ConfigParser ()
    config.read (['/etc/woofrc', os.path.expanduser ('~/.woofrc')])
 
    if config.has_option ('main', 'port'):
