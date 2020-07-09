@@ -19,6 +19,7 @@
 #  Free Software  Foundation, Inc., 59 Temple Place - Suite 330,
 #  Boston, MA 02111-1307, USA.
 
+# Python 3 support by Robbert Gurdeep Singh
 # Darwin support with the help from Mat Caughron, <mat@phpconsulting.com>
 # Solaris support by Colin Marquardt, <colin.marquardt@zmd.de>
 # FreeBSD support with the help from Andy Gimblett, <A.M.Gimblett@swansea.ac.uk>
@@ -75,7 +76,7 @@ class EvilZipStreamWrapper(TM):
                 self.tells = []
                 self.in_file_data = 0
             else:
-                raise "unexpected seek for EvilZipStreamWrapper"
+                raise Exception("unexpected seek for EvilZipStreamWrapper")
 
     def write(self, data):
         # only test for headers if we know that we're not writing
@@ -314,9 +315,8 @@ class FileServHTTPRequestHandler (http.server.BaseHTTPRequestHandler):
 
             try:
                 if type == "file":
-                    datafile = file(self.filename)
-                    shutil.copyfileobj(datafile, self.wfile)
-                    datafile.close()
+                    with open(self.filename, "rb") as datafile:
+                        shutil.copyfileobj(datafile, self.wfile)
                 elif type == "dir":
                     if compressed == 'zip':
                         ezfile = EvilZipStreamWrapper(self.wfile)
@@ -328,7 +328,7 @@ class FileServHTTPRequestHandler (http.server.BaseHTTPRequestHandler):
                             for f in files:
                                 filename = os.path.join(root, f)
                                 if filename[:len(stripoff)] != stripoff:
-                                    raise RuntimeException(
+                                    raise Exception(
                                         "invalid filename assumptions, please report!")
                                 zfile.write(filename, filename[len(stripoff):])
                         zfile.close()
@@ -340,6 +340,7 @@ class FileServHTTPRequestHandler (http.server.BaseHTTPRequestHandler):
                         tfile.close()
             except Exception as e:
                 print(e)
+                print(e.with_traceback())
                 print("Connection broke. Aborting", file=sys.stderr)
 
 
@@ -465,7 +466,7 @@ def woof_client(url):
         fname = os.path.basename(fname)
 
     readline.set_startup_hook(lambda: readline.insert_text(fname))
-    fname = raw_input("Enter target filename: ")
+    fname = input("Enter target filename: ")
     readline.set_startup_hook(None)
 
     override = False
@@ -477,7 +478,7 @@ def woof_client(url):
                            os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
     except OSError as e:
         if e.errno == errno.EEXIST:
-            override = raw_input("File exists. Overwrite (y/n)? ")
+            override = input("File exists. Overwrite (y/n)? ")
             override = override.lower() in ["y", "yes"]
         else:
             raise
@@ -492,7 +493,7 @@ def woof_client(url):
                     destfile = os.open(destfilename,
                                        os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
                     break
-                except OSError(e):
+                except OSError as e:
                     if e.errno == errno.EEXIST:
                         continue
                     raise
@@ -597,7 +598,7 @@ def main():
 
     else:
         if len(filenames) == 1:
-            if woof_client(filenames[0]) != None:
+            if woof_client(filenames[0]) is not None:
                 sys.exit(0)
 
             filename = os.path.abspath(filenames[0])
